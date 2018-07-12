@@ -3,6 +3,10 @@ extern crate sdl2;
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::rect::Rect;
+use sdl2::image::LoadTexture;
+
+use std::path::Path;
 
 const CELL_SIZE : u32 = 32;
 
@@ -15,7 +19,7 @@ fn main() {
     // map.dump();
 
     let sdl = sdl2::init().unwrap();
-    // let _sdl_image = sdl2::image::init(sdl2::image::INIT_PNG).unwrap();
+    let _sdl_image = sdl2::image::init(sdl2::image::INIT_PNG).unwrap();
     // let _sdl_ttf = sdl2::ttf::init().unwrap();
 
     let video_subsystem = sdl.video().unwrap();
@@ -39,7 +43,8 @@ fn main() {
 
     let mut timer_subsystem = sdl.timer().unwrap();
 
-    // let tex_creator = canvas.texture_creator();
+    let tex_creator = canvas.texture_creator();
+    let tex = tex_creator.load_texture(Path::new("data/img/win.png")).unwrap();
 
     let mut events = sdl.event_pump().unwrap();
     'main: loop {
@@ -78,11 +83,15 @@ fn main() {
 
         map.render(&mut canvas);
 
-        // canvas.copy(&entry_point, None, Some(Rect::new(4 * 64, 0, 64, 64))).unwrap();
-
         canvas.present();
 
         if done {
+            let w2 = window_width / 2;
+            let h2 = window_height / 2;
+            let r = Rect::new((w2 - w2 / 2) as i32, (h2 - h2 / 2) as i32,
+                              w2, h2);
+            canvas.copy(&tex, None, Some(r)).unwrap();
+            canvas.present();
             println!("Congratulations, you won !");
             timer_subsystem.delay(2000);
             std::process::exit(0);
