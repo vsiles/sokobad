@@ -3,7 +3,6 @@ extern crate sdl2;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 
-use std::fmt;
 use std::io;
 
 fn read_line() -> Result<String, String> {
@@ -35,97 +34,81 @@ pub enum Direction {
 }
 
 #[derive(Copy, Clone)]
-enum Cell {
+enum CellType {
     Wall,
     Crate,
     Empty,
-    Goal,
     Block,
     Exit,
-    Success
+}
+
+#[derive(Copy, Clone)]
+struct Cell {
+    kind: CellType,
+    goal: bool
 }
 
 impl Cell {
     fn color(&self, goals_left: i32) -> Color {
-        match *self {
-            Cell::Wall => Color::RGB(96, 96, 96),
-            Cell::Empty => Color::RGB(192, 192, 192),
-            Cell::Goal => Color::RGB(255, 255, 51),
-            Cell::Block => Color::RGB(102, 51, 0),
-            Cell::Success => Color::RGB(103, 240, 139),
-            Cell::Crate => Color::RGB(255, 128, 0),
-            Cell::Exit => if goals_left > 0 {
+        match self.kind {
+            CellType::Wall => Color::RGB(96, 96, 96),
+            CellType::Block => if self.goal {
+                Color::RGB(103, 240, 139)
+            } else {
+                Color::RGB(102, 51, 0)
+            },
+            CellType::Crate => Color::RGB(255, 128, 0),
+            CellType::Exit => if goals_left > 0 {
                 Color::RGB(0, 0, 0)
             } else {
                 Color::RGB(255, 255, 255)
+            },
+            CellType::Empty => if self.goal {
+                Color::RGB(255, 255, 51)
+            } else {
+                Color::RGB(192, 192, 192)
             }
         }
     }
-}
 
-
-impl fmt::Display for Cell {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Cell::Wall => write!(f, "."),
-            Cell::Empty => write!(f, " "),
-            Cell::Goal => write!(f, "g"),
-            Cell::Block => write!(f, "b"),
-            Cell::Exit => write!(f, "x"),
-            Cell::Success => write!(f, "!"),
-            Cell::Crate => write!(f, "c"),
-        }
-    }
-}
-
-impl Cell {
     fn is_free(&self, solved: bool) -> bool {
-        match *self {
-            Cell::Wall => false,
-            Cell::Exit => solved,
-            Cell::Success => false,
-            Cell::Block => false,
-            Cell::Goal => true,
-            Cell::Empty => true,
-            Cell::Crate => false,
+        match self.kind {
+            CellType::Wall => false,
+            CellType::Exit => solved,
+            CellType::Block => false,
+            CellType::Empty => true,
+            CellType::Crate => false,
         }
     }
 
     fn is_movable(&self) -> bool {
-        match *self {
-            Cell::Block => true,
-            Cell::Success => true,
-            Cell::Crate => true,
+        match self.kind {
+            CellType::Block => true,
+            CellType::Crate => true,
             _ => false
         }
     }
 
     fn is_crate(&self) -> bool {
-        match *self {
-            Cell::Crate => true,
+        match self.kind {
+            CellType::Crate => true,
             _ => false
         }
     }
 
     fn is_goal(&self) -> bool {
-        match *self {
-            Cell::Goal => true,
-            _ => false
-        }
-    }
-
-    fn is_success(&self) -> bool {
-        match *self {
-            Cell::Success => true,
-            _ => false
-        }
+        self.goal
     }
 
     fn is_exit(&self) -> bool {
-        match *self {
-            Cell::Exit => true,
+        match self.kind {
+            CellType::Exit => true,
             _ => false
         }
+    }
+
+    fn non_goal(kind: CellType) -> Cell {
+        Cell { kind: kind, goal: false }
     }
 }
 
@@ -158,23 +141,20 @@ impl State {
         if cell.is_movable() && ncell.is_free(self.solved) {
             if cell.is_crate() {
                 /* Move but can't succeed */
-                self.data[f1(y, 2)][x] = Cell::Crate;
-                self.data[f1(y, 1)][x] = Cell::Empty;
+                self.data[f1(y, 2)][x].kind = CellType::Crate;
+                self.data[f1(y, 1)][x].kind = CellType::Empty;
             } else {
                 if self.data[f1(y, 2)][x].is_goal() {
                     /* Block on goal -> success */
-                    self.data[f1(y, 2)][x] = Cell::Success;
                     self.goals_left = self.goals_left - 1
-                } else {
-                    self.data[f1(y, 2)][x] = Cell::Block
                 }
+                self.data[f1(y, 2)][x].kind = CellType::Block;
 
-                if self.data[f1(y, 1)][x].is_success() {
-                    self.data[f1(y, 1)][x] = Cell::Goal;
+                if self.data[f1(y, 1)][x].is_goal() {
+                    /* Block removed from goal -> failure */
                     self.goals_left = self.goals_left + 1
-                } else {
-                    self.data[f1(y, 1)][x] = Cell::Empty
                 }
+                self.data[f1(y, 1)][x].kind = CellType::Empty
             }
             /* finally, let's move */
             self.player.y = f2(self.player.y, 1);
@@ -197,23 +177,20 @@ impl State {
         if cell.is_movable() && ncell.is_free(self.solved) {
             if cell.is_crate() {
                 /* Move but can't succeed */
-                self.data[y][f1(x, 2)] = Cell::Crate;
-                self.data[y][f1(x, 1)] = Cell::Empty;
+                self.data[y][f1(x, 2)].kind = CellType::Crate;
+                self.data[y][f1(x, 1)].kind = CellType::Empty;
             } else {
                 if self.data[y][f1(x, 2)].is_goal() {
                     /* Block on goal -> success */
-                    self.data[y][f1(x, 2)] = Cell::Success;
                     self.goals_left = self.goals_left - 1
-                } else {
-                    self.data[y][f1(x, 2)] = Cell::Block
                 }
+                self.data[y][f1(x, 2)].kind = CellType::Block;
 
-                if self.data[y][f1(x, 1)].is_success() {
-                    self.data[y][f1(x, 1)] = Cell::Goal;
+                if self.data[y][f1(x, 1)].is_goal() {
+                    /* Block removed from goal -> failure */
                     self.goals_left = self.goals_left + 1
-                } else {
-                    self.data[y][f1(x, 1)] = Cell::Empty
                 }
+                self.data[y][f1(x, 1)].kind = CellType::Empty
             }
             /* finally, let's move */
             self.player.x = f2(self.player.x, 1);
@@ -222,7 +199,6 @@ impl State {
         return false
     }
 }
-
 
 pub struct Map {
     pub width: i32,
@@ -260,23 +236,23 @@ impl Map {
                                 start = !start;
                                 x = i;
                                 y= j;
-                                Cell::Empty
+                                Cell::non_goal(CellType::Empty)
                             } else {
                                 return Err(format!("Multiple start points"))
                             }
                         },
-                        '.' => Cell::Wall,
-                        ' ' => Cell::Empty,
+                        '.' => Cell::non_goal(CellType::Wall),
+                        ' ' => Cell::non_goal(CellType::Empty),
                         'g' => {
                             goals_left = goals_left + 1;
-                            Cell::Goal
+                            Cell { kind: CellType::Empty, goal: true }
                         },
-                        'b' => Cell::Block,
-                        'c' => Cell::Crate,
+                        'b' => Cell::non_goal(CellType::Block),
+                        'c' => Cell::non_goal(CellType::Crate),
                         'x' => {
                             if !exit_cell {
                                 exit_cell = !exit_cell;
-                                Cell::Exit
+                                Cell::non_goal(CellType::Exit)
                             } else {
                                 return Err(format!("Multiple exit points"))
                             }
@@ -360,18 +336,6 @@ impl Map {
             curr_state.solved = false
         }
         return false
-    }
-
-    #[allow(dead_code)]
-    pub fn dump(&self) {
-        let state = self.get_state_ro();
-        for j in 0..self.height {
-            for i in 0..self.width {
-                print!("{}", state.data[j as usize][i as usize])
-            }
-            println!("")
-        }
-        println!("")
     }
 
     pub fn render(&self, canvas: & mut sdl2::render::WindowCanvas) {
