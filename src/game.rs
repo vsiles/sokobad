@@ -135,15 +135,15 @@ struct State {
 
 impl State {
     fn move_up_down<F1, F2>(&mut self, x: usize, y: usize, next: bool,
-                            f1: F1, f2: F2)
+                            f1: F1, f2: F2) -> bool
     where F1: Fn(usize, usize) -> usize,
           F2: Fn(i32, i32) -> i32 {
         let cell = self.data[f1(y, 1)][x];
         if cell.is_free(self.solved) {
             self.player.y = f2(self.player.y , 1);
-            return
+            return true
         }
-        if !next { return }
+        if !next { return false }
         let ncell = self.data[f1(y, 2)][x];
         if cell.is_movable() && ncell.is_free(self.solved) {
             if self.data[f1(y, 2)][x].is_goal() {
@@ -158,20 +158,22 @@ impl State {
             } else {
                 self.data[f1(y, 1)][x] = Cell::Empty
             }
-            self.player.y = f2(self.player.y, 1)
+            self.player.y = f2(self.player.y, 1);
+            return true
         }
+        return false;
     }
 
     fn move_left_right<F1, F2>(&mut self, x: usize, y: usize, next: bool,
-                               f1: F1, f2: F2)
+                               f1: F1, f2: F2) -> bool
     where F1: Fn(usize, usize) -> usize,
           F2: Fn(i32, i32) -> i32 {
         let cell = self.data[y][f1(x, 1)];
         if cell.is_free(self.solved) {
             self.player.x = f2(self.player.x , 1);
-            return
+            return true
         }
-        if !next { return }
+        if !next { return false }
         let ncell = self.data[y][f1(x, 2)];
         if cell.is_movable() && ncell.is_free(self.solved) {
             if self.data[y][f1(x, 2)].is_goal() {
@@ -186,8 +188,10 @@ impl State {
             } else {
                 self.data[y][f1(x, 1)] = Cell::Empty
             }
-            self.player.x = f2(self.player.x, 1)
+            self.player.x = f2(self.player.x, 1);
+            return true
         }
+        return false
     }
 }
 
@@ -281,41 +285,49 @@ impl Map {
     }
 
     pub fn update(&mut self, dir: Direction) -> bool {
-        let mut len = self.state.len();
-        if len >= MAX_UNDO {
-            self.state.remove(0);
-            len = len - 1;
-        }
-        let cur_state = self.state[len - 1].clone();
-        self.state.push(cur_state);
+        /* copy current state */
+        let len = self.state.len();
+        let mut state = self.state[len - 1].clone();
+
         let w: usize = self.width as usize;
         let h: usize = self.height as usize;
-        let state = self.get_state();
         let x: usize = state.player.x as usize;
         let y: usize = state.player.y as usize;
-        match dir {
-            Direction::Up => if y > 0 {
-                state.move_up_down(x, y, y > 1, |x, y| x - y, |x, y| x - y)
-            },
-            Direction::Down => if y < h - 1 {
-                state.move_up_down(x, y, y < h - 2, |x, y| x + y, |x, y| x + y)
-            },
-            Direction::Left => if x > 0 {
-                state.move_left_right(x, y, x > 1, |x, y| x - y, |x, y| x - y)
-            },
-            Direction::Right => if x < w - 1 {
-                state.move_left_right(x, y, x < w - 2, |x, y| x + y, |x, y| x + y)
+        let moved = {
+            match dir {
+                Direction::Up => if y > 0 {
+                    state.move_up_down(x, y, y > 1, |x, y| x - y, |x, y| x - y)
+                } else { false },
+                Direction::Down => if y < h - 1 {
+                    state.move_up_down(x, y, y < h - 2, |x, y| x + y, |x, y| x + y)
+                } else { false },
+                Direction::Left => if x > 0 {
+                    state.move_left_right(x, y, x > 1, |x, y| x - y, |x, y| x - y)
+                } else { false },
+                Direction::Right => if x < w - 1 {
+                    state.move_left_right(x, y, x < w - 2, |x, y| x + y, |x, y| x + y)
+                } else { false }
             }
+        };
+
+        /* If we moved, update the undo stack */
+        if moved {
+            if len >= MAX_UNDO {
+                self.state.remove(0);
+            }
+            self.state.push(state);
         }
-        if state.goals_left == 0 {
-            state.solved = true;
-            let fx : usize = state.player.x as usize;
-            let fy : usize = state.player.y as usize;
-            if state.data[fy][fx].is_exit() {
+
+        let curr_state = self.get_state();
+        if curr_state.goals_left == 0 {
+            curr_state.solved = true;
+            let fx : usize = curr_state.player.x as usize;
+            let fy : usize = curr_state.player.y as usize;
+            if curr_state.data[fy][fx].is_exit() {
                 return true
             }
         } else {
-            state.solved = false
+            curr_state.solved = false
         }
         return false
     }
