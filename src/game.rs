@@ -6,6 +6,8 @@ use sdl2::rect::Rect;
 use std::fmt;
 use std::io;
 
+const MAX_UNDO: usize = 16;
+
 fn read_line() -> Result<String, String> {
     let mut line = "".to_string();
     match io::stdin().read_line(&mut line) {
@@ -279,7 +281,11 @@ impl Map {
     }
 
     pub fn update(&mut self, dir: Direction) -> bool {
-        let len = self.state.len();
+        let mut len = self.state.len();
+        if len >= MAX_UNDO {
+            self.state.remove(0);
+            len = len - 1;
+        }
         let cur_state = self.state[len - 1].clone();
         self.state.push(cur_state);
         let w: usize = self.width as usize;
