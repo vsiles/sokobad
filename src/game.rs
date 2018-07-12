@@ -6,8 +6,6 @@ use sdl2::rect::Rect;
 use std::fmt;
 use std::io;
 
-const MAX_UNDO: usize = 16;
-
 fn read_line() -> Result<String, String> {
     let mut line = "".to_string();
     match io::stdin().read_line(&mut line) {
@@ -199,12 +197,13 @@ impl State {
 pub struct Map {
     pub width: i32,
     pub height: i32,
+    max_undo: usize,
     cell_size: u32,
     state: Vec<State>
 }
 
 impl Map {
-    pub fn new(cell_size: u32) -> Result<Map, String> {
+    pub fn new(cell_size: u32, max_undo: usize) -> Result<Map, String> {
         let width = read_int()?;
         let height = read_int()?;
         let mut map = Vec::new();
@@ -269,7 +268,7 @@ impl Map {
                         solved: false, goals_left: goals_left });
             Ok(Map {
                 width: width, height: height, state: state,
-                cell_size: cell_size
+                cell_size: cell_size, max_undo: max_undo
             })
         }
     }
@@ -312,7 +311,7 @@ impl Map {
 
         /* If we moved, update the undo stack */
         if moved {
-            if len >= MAX_UNDO {
+            if len >= self.max_undo {
                 self.state.remove(0);
             }
             self.state.push(state);

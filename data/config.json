@@ -1,0 +1,11 @@
+{
+    "undo-level": 32,
+    "key-bindings": {
+        "up": "arrow-up",
+        "down": "arrow-down",
+        "left": "arrow-left",
+        "right": "arrow-right",
+        "undo": "backspace",
+        "quit": "q"
+    }
+}

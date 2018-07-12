@@ -3,6 +3,9 @@ name = "sokoban"
 version = "0.1.0"
 authors = ["Vincent Siles <vincent.siles@ens-lyon.org>"]
 
+[dependencies]
+json = "0.11.13"
+
 [dependencies.sdl2]
 version = "0.31.0"
 default-features = false

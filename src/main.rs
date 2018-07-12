@@ -7,9 +7,11 @@ use sdl2::keyboard::Keycode;
 const CELL_SIZE : u32 = 32;
 
 mod game;
+mod config;
 
 fn main() {
-    let mut map = game::Map::new(CELL_SIZE).unwrap();
+    let (keys, undo_level) = config::new("data/config.json").unwrap();
+    let mut map = game::Map::new(CELL_SIZE, undo_level).unwrap();
     // map.dump();
 
     let sdl = sdl2::init().unwrap();
@@ -47,18 +49,25 @@ fn main() {
                 Event::Quit {..} => break 'main,
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } =>
                     break 'main,
-                Event::KeyDown { keycode: Some(Keycode::Q), .. } =>
-                    break 'main,
-                Event::KeyDown { keycode: Some(Keycode::Up), .. } =>
-                    done = map.update(game::Direction::Up),
-                Event::KeyDown { keycode: Some(Keycode::Down), .. } =>
-                    done = map.update(game::Direction::Down),
-                Event::KeyDown { keycode: Some(Keycode::Left), .. } =>
-                    done = map.update(game::Direction::Left),
-                Event::KeyDown { keycode: Some(Keycode::Right), .. } =>
-                    done = map.update(game::Direction::Right),
-                Event::KeyDown { keycode: Some(Keycode::Backspace), ..} =>
-                    map.undo(),
+                Event::KeyDown { keycode, .. } => {
+                    match keycode {
+                        Some(key) => {
+                            if key == keys.quit { break 'main }
+                            else if key == keys.up {
+                                done = map.update(game::Direction::Up)
+                            } else if key == keys.down {
+                                done = map.update(game::Direction::Down)
+                            } else if key == keys.left {
+                                done = map.update(game::Direction::Left)
+                            } else if key == keys.right {
+                                done = map.update(game::Direction::Right)
+                            } else if key == keys.undo {
+                                map.undo()
+                            }
+                        },
+                        None => ()
+                    }
+                },
                 _ => {},
             }
         }
