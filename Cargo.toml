@@ -1,0 +1,9 @@
+[package]
+name = "sokoban"
+version = "0.1.0"
+authors = ["Vincent Siles <vincent.siles@ens-lyon.org>"]
+
+[dependencies.sdl2]
+version = "0.31.0"
+default-features = false
+features = ["ttf", "image"]
