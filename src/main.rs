@@ -57,6 +57,8 @@ fn main() {
                     done = map.update(game::Direction::Left),
                 Event::KeyDown { keycode: Some(Keycode::Right), .. } =>
                     done = map.update(game::Direction::Right),
+                Event::KeyDown { keycode: Some(Keycode::Backspace), ..} =>
+                    map.undo(),
                 _ => {},
             }
         }

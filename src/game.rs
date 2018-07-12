@@ -117,19 +117,84 @@ impl Cell {
     }
 }
 
+#[derive(Clone)]
 struct Player {
     x: i32,
     y: i32
 }
 
-pub struct Map {
+#[derive(Clone)]
+struct State {
     data: Vec<Vec<Cell>>,
-    pub width: i32,
-    pub height: i32,
-    cell_size: u32,
     player: Player,
     solved: bool,
     goals_left: i32
+}
+
+impl State {
+    fn move_up_down<F1, F2>(&mut self, x: usize, y: usize, next: bool,
+                            f1: F1, f2: F2)
+    where F1: Fn(usize, usize) -> usize,
+          F2: Fn(i32, i32) -> i32 {
+        let cell = self.data[f1(y, 1)][x];
+        if cell.is_free(self.solved) {
+            self.player.y = f2(self.player.y , 1);
+            return
+        }
+        if !next { return }
+        let ncell = self.data[f1(y, 2)][x];
+        if cell.is_movable() && ncell.is_free(self.solved) {
+            if self.data[f1(y, 2)][x].is_goal() {
+                self.data[f1(y, 2)][x] = Cell::Success;
+                self.goals_left = self.goals_left - 1
+            } else {
+                self.data[f1(y, 2)][x] = Cell::Block
+            }
+            if self.data[f1(y, 1)][x].is_success() {
+                self.data[f1(y, 1)][x] = Cell::Goal;
+                self.goals_left = self.goals_left + 1
+            } else {
+                self.data[f1(y, 1)][x] = Cell::Empty
+            }
+            self.player.y = f2(self.player.y, 1)
+        }
+    }
+
+    fn move_left_right<F1, F2>(&mut self, x: usize, y: usize, next: bool,
+                               f1: F1, f2: F2)
+    where F1: Fn(usize, usize) -> usize,
+          F2: Fn(i32, i32) -> i32 {
+        let cell = self.data[y][f1(x, 1)];
+        if cell.is_free(self.solved) {
+            self.player.x = f2(self.player.x , 1);
+            return
+        }
+        if !next { return }
+        let ncell = self.data[y][f1(x, 2)];
+        if cell.is_movable() && ncell.is_free(self.solved) {
+            if self.data[y][f1(x, 2)].is_goal() {
+                self.data[y][f1(x, 2)] = Cell::Success;
+                self.goals_left = self.goals_left - 1
+            } else {
+                self.data[y][f1(x, 2)] = Cell::Block
+            }
+            if self.data[y][f1(x, 1)].is_success() {
+                self.data[y][f1(x, 1)] = Cell::Goal;
+                self.goals_left = self.goals_left + 1
+            } else {
+                self.data[y][f1(x, 1)] = Cell::Empty
+            }
+            self.player.x = f2(self.player.x, 1)
+        }
+    }
+}
+
+
+pub struct Map {
+    pub width: i32,
+    pub height: i32,
+    cell_size: u32,
+    state: Vec<State>
 }
 
 impl Map {
@@ -193,108 +258,68 @@ impl Map {
         } else if goals_left <= 0 {
             Err(format!("Not enough goals"))
         } else {
+            let mut state = Vec::new();
+            state.push(State { data: map, player: Player { x: x, y: y},
+                        solved: false, goals_left: goals_left });
             Ok(Map {
-                width: width, height: height, data: map,
-                player: Player { x: x, y: y},
-                solved: false, goals_left: goals_left,
+                width: width, height: height, state: state,
                 cell_size: cell_size
             })
         }
     }
 
-    fn move_up_down<F1, F2>(&mut self, x: usize, y: usize, next: bool,
-                            f1: F1, f2: F2)
-        where F1: Fn(usize, usize) -> usize,
-              F2: Fn(i32, i32) -> i32 {
-                  let cell = self.data[f1(y, 1)][x];
-                  if cell.is_free(self.solved) {
-                      self.player.y = f2(self.player.y , 1);
-                      return
-                  }
-                  if !next { return }
-                  let ncell = self.data[f1(y, 2)][x];
-                  if cell.is_movable() && ncell.is_free(self.solved) {
-                      if self.data[f1(y, 2)][x].is_goal() {
-                          self.data[f1(y, 2)][x] = Cell::Success;
-                          self.goals_left = self.goals_left - 1
-                      } else {
-                          self.data[f1(y, 2)][x] = Cell::Block
-                      }
-                      if self.data[f1(y, 1)][x].is_success() {
-                          self.data[f1(y, 1)][x] = Cell::Goal;
-                          self.goals_left = self.goals_left + 1
-                      } else {
-                          self.data[f1(y, 1)][x] = Cell::Empty
-                      }
-                      self.player.y = f2(self.player.y, 1)
-                  }
-              }
+    fn get_state(&mut self) -> &mut State {
+        let len = self.state.len();
+        &mut self.state[len - 1]
+    }
 
-    fn move_left_right<F1, F2>(&mut self, x: usize, y: usize, next: bool,
-                               f1: F1, f2: F2)
-        where F1: Fn(usize, usize) -> usize,
-              F2: Fn(i32, i32) -> i32 {
-                  let cell = self.data[y][f1(x, 1)];
-                  if cell.is_free(self.solved) {
-                      self.player.x = f2(self.player.x , 1);
-                      return
-                  }
-                  if !next { return }
-                  let ncell = self.data[y][f1(x, 2)];
-                  if cell.is_movable() && ncell.is_free(self.solved) {
-                      if self.data[y][f1(x, 2)].is_goal() {
-                          self.data[y][f1(x, 2)] = Cell::Success;
-                          self.goals_left = self.goals_left - 1
-                      } else {
-                          self.data[y][f1(x, 2)] = Cell::Block
-                      }
-                      if self.data[y][f1(x, 1)].is_success() {
-                          self.data[y][f1(x, 1)] = Cell::Goal;
-                          self.goals_left = self.goals_left + 1
-                      } else {
-                          self.data[y][f1(x, 1)] = Cell::Empty
-                      }
-                      self.player.x = f2(self.player.x, 1)
-                  }
-              }
+    fn get_state_ro(&self) -> &State {
+        let len = self.state.len();
+        &self.state[len - 1]
+    }
 
     pub fn update(&mut self, dir: Direction) -> bool {
-        let x: usize = self.player.x as usize;
-        let y: usize = self.player.y as usize;
+        let len = self.state.len();
+        let cur_state = self.state[len - 1].clone();
+        self.state.push(cur_state);
         let w: usize = self.width as usize;
         let h: usize = self.height as usize;
+        let state = self.get_state();
+        let x: usize = state.player.x as usize;
+        let y: usize = state.player.y as usize;
         match dir {
             Direction::Up => if y > 0 {
-                self.move_up_down(x, y, y > 1, |x, y| x - y, |x, y| x - y)
+                state.move_up_down(x, y, y > 1, |x, y| x - y, |x, y| x - y)
             },
             Direction::Down => if y < h - 1 {
-                self.move_up_down(x, y, y < h - 2, |x, y| x + y, |x, y| x + y)
+                state.move_up_down(x, y, y < h - 2, |x, y| x + y, |x, y| x + y)
             },
             Direction::Left => if x > 0 {
-                self.move_left_right(x, y, x > 1, |x, y| x - y, |x, y| x - y)
+                state.move_left_right(x, y, x > 1, |x, y| x - y, |x, y| x - y)
             },
             Direction::Right => if x < w - 1 {
-                self.move_left_right(x, y, x < w - 2, |x, y| x + y, |x, y| x + y)
+                state.move_left_right(x, y, x < w - 2, |x, y| x + y, |x, y| x + y)
             }
         }
-        if self.goals_left == 0 {
-            self.solved = true;
-            let fx : usize = self.player.x as usize;
-            let fy : usize = self.player.y as usize;
-            if self.data[fy][fx].is_exit() {
+        if state.goals_left == 0 {
+            state.solved = true;
+            let fx : usize = state.player.x as usize;
+            let fy : usize = state.player.y as usize;
+            if state.data[fy][fx].is_exit() {
                 return true
             }
         } else {
-            self.solved = false
+            state.solved = false
         }
         return false
     }
 
     #[allow(dead_code)]
     pub fn dump(&self) {
+        let state = self.get_state_ro();
         for j in 0..self.height {
             for i in 0..self.width {
-                print!("{}", self.data[j as usize][i as usize])
+                print!("{}", state.data[j as usize][i as usize])
             }
             println!("")
         }
@@ -303,17 +328,25 @@ impl Map {
 
     pub fn render(&self, canvas: & mut sdl2::render::WindowCanvas) {
         let cs : i32 = self.cell_size as i32;
+        let state = self.get_state_ro();
         for j in 0..self.height {
             for i in 0..self.width {
-                let cell = &self.data[j as usize][i as usize];
-                canvas.set_draw_color(cell.color(self.goals_left));
+                let cell = &state.data[j as usize][i as usize];
+                canvas.set_draw_color(cell.color(state.goals_left));
                 canvas.fill_rect(Rect::new(i * cs, j * cs,
                                            self.cell_size, self.cell_size)).unwrap();
             }
         }
         /* Draw player */
         canvas.set_draw_color(Color::RGB(255, 51, 51));
-        canvas.fill_rect(Rect::new(self.player.x * cs, self.player.y * cs,
+        canvas.fill_rect(Rect::new(state.player.x * cs,
+                                   state.player.y * cs,
                                    self.cell_size, self.cell_size)).unwrap();
+    }
+
+    pub fn undo(&mut self) {
+        if self.state.len() > 1 {
+            self.state.pop();
+        }
     }
 }
