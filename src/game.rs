@@ -37,6 +37,7 @@ pub enum Direction {
 #[derive(Copy, Clone)]
 enum Cell {
     Wall,
+    Crate,
     Empty,
     Goal,
     Block,
@@ -52,6 +53,7 @@ impl Cell {
             Cell::Goal => Color::RGB(255, 255, 51),
             Cell::Block => Color::RGB(102, 51, 0),
             Cell::Success => Color::RGB(103, 240, 139),
+            Cell::Crate => Color::RGB(255, 128, 0),
             Cell::Exit => if goals_left > 0 {
                 Color::RGB(0, 0, 0)
             } else {
@@ -71,6 +73,7 @@ impl fmt::Display for Cell {
             Cell::Block => write!(f, "b"),
             Cell::Exit => write!(f, "x"),
             Cell::Success => write!(f, "!"),
+            Cell::Crate => write!(f, "c"),
         }
     }
 }
@@ -84,6 +87,7 @@ impl Cell {
             Cell::Block => false,
             Cell::Goal => true,
             Cell::Empty => true,
+            Cell::Crate => false,
         }
     }
 
@@ -91,6 +95,14 @@ impl Cell {
         match *self {
             Cell::Block => true,
             Cell::Success => true,
+            Cell::Crate => true,
+            _ => false
+        }
+    }
+
+    fn is_crate(&self) -> bool {
+        match *self {
+            Cell::Crate => true,
             _ => false
         }
     }
@@ -144,18 +156,27 @@ impl State {
         if !next { return false }
         let ncell = self.data[f1(y, 2)][x];
         if cell.is_movable() && ncell.is_free(self.solved) {
-            if self.data[f1(y, 2)][x].is_goal() {
-                self.data[f1(y, 2)][x] = Cell::Success;
-                self.goals_left = self.goals_left - 1
+            if cell.is_crate() {
+                /* Move but can't succeed */
+                self.data[f1(y, 2)][x] = Cell::Crate;
+                self.data[f1(y, 1)][x] = Cell::Empty;
             } else {
-                self.data[f1(y, 2)][x] = Cell::Block
+                if self.data[f1(y, 2)][x].is_goal() {
+                    /* Block on goal -> success */
+                    self.data[f1(y, 2)][x] = Cell::Success;
+                    self.goals_left = self.goals_left - 1
+                } else {
+                    self.data[f1(y, 2)][x] = Cell::Block
+                }
+
+                if self.data[f1(y, 1)][x].is_success() {
+                    self.data[f1(y, 1)][x] = Cell::Goal;
+                    self.goals_left = self.goals_left + 1
+                } else {
+                    self.data[f1(y, 1)][x] = Cell::Empty
+                }
             }
-            if self.data[f1(y, 1)][x].is_success() {
-                self.data[f1(y, 1)][x] = Cell::Goal;
-                self.goals_left = self.goals_left + 1
-            } else {
-                self.data[f1(y, 1)][x] = Cell::Empty
-            }
+            /* finally, let's move */
             self.player.y = f2(self.player.y, 1);
             return true
         }
@@ -174,18 +195,27 @@ impl State {
         if !next { return false }
         let ncell = self.data[y][f1(x, 2)];
         if cell.is_movable() && ncell.is_free(self.solved) {
-            if self.data[y][f1(x, 2)].is_goal() {
-                self.data[y][f1(x, 2)] = Cell::Success;
-                self.goals_left = self.goals_left - 1
+            if cell.is_crate() {
+                /* Move but can't succeed */
+                self.data[y][f1(x, 2)] = Cell::Crate;
+                self.data[y][f1(x, 1)] = Cell::Empty;
             } else {
-                self.data[y][f1(x, 2)] = Cell::Block
+                if self.data[y][f1(x, 2)].is_goal() {
+                    /* Block on goal -> success */
+                    self.data[y][f1(x, 2)] = Cell::Success;
+                    self.goals_left = self.goals_left - 1
+                } else {
+                    self.data[y][f1(x, 2)] = Cell::Block
+                }
+
+                if self.data[y][f1(x, 1)].is_success() {
+                    self.data[y][f1(x, 1)] = Cell::Goal;
+                    self.goals_left = self.goals_left + 1
+                } else {
+                    self.data[y][f1(x, 1)] = Cell::Empty
+                }
             }
-            if self.data[y][f1(x, 1)].is_success() {
-                self.data[y][f1(x, 1)] = Cell::Goal;
-                self.goals_left = self.goals_left + 1
-            } else {
-                self.data[y][f1(x, 1)] = Cell::Empty
-            }
+            /* finally, let's move */
             self.player.x = f2(self.player.x, 1);
             return true
         }
@@ -242,6 +272,7 @@ impl Map {
                             Cell::Goal
                         },
                         'b' => Cell::Block,
+                        'c' => Cell::Crate,
                         'x' => {
                             if !exit_cell {
                                 exit_cell = !exit_cell;
