@@ -15,3 +15,6 @@ HOWTO:
 $ cargo build --release
 $ cargo run < data/maps/map0
 ```
+
+KNOWN BUG:
+- crates will erase goals
