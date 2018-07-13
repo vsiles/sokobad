@@ -1,5 +1,6 @@
 {
     "undo-level": 32,
+    "replay-speed": 250,
     "key-bindings": {
         "up": "arrow-up",
         "down": "arrow-down",

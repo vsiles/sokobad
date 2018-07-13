@@ -1,8 +1,9 @@
 use std::io::prelude::*;
 use std::fs::File;
 use std::fmt;
-use std::io;
+use std::io::{self, BufReader};
 
+#[derive(Clone, Copy)]
 pub enum Command {
     Up,
     Down,
@@ -29,7 +30,6 @@ impl fmt::Display for Command {
 
 struct State {
     cmds: Vec<Command>,
-    path: String
 }
 
 impl State {
@@ -40,8 +40,17 @@ impl State {
         }
     }
 
-    fn save(&self) -> Result<(), io::Error> {
-        let mut f = File::create(&self.path)?;
+    fn next(&mut self) -> Option<Command> {
+        if self.cmds.len() > 0 {
+            let cmd = self.cmds.remove(0);
+            Some(cmd)
+        } else {
+            None
+        }
+    }
+
+    fn save(&self, path: &str) -> Result<(), io::Error> {
+        let mut f = File::create(path)?;
         for cmd in &self.cmds {
             match f.write(format!("{}\n", cmd).as_bytes()) {
                 Ok(_) => (),
@@ -50,42 +59,84 @@ impl State {
         }
         Ok(())
     }
-}
 
-pub struct Run {
-    state: Option<State>
-}
-
-impl Run {
-    pub fn new(path: String) -> Run {
-        println!("New run {}", path);
-        let state = State {
-            cmds: Vec::new(),
-            path: path
-        };
-        Run { state: Some(state) }
-    }
-
-    pub fn empty() -> Run {
-        Run { state: None }
-    }
-
-    pub fn record(&mut self, cmd: Command) {
-        match self.state {
-            Some(ref mut state) => {
-                state.cmds.push(cmd);
-            },
-            None => ()
+    fn parse_line(line: &String) -> Result<Command, String> {
+        if line == "Up" { Ok(Command::Up) }
+        else if line == "Down" { Ok(Command::Down) }
+        else if line == "Left" { Ok(Command::Left) }
+        else if line == "Right" { Ok(Command::Right) }
+        else if line == "Undo" { Ok(Command::Undo) }
+        else if line == "Reset" { Ok(Command::Reset) }
+        else if line == "Quit" { Ok(Command::Quit) }
+        else {
+            Err(format!("Unknown command: {}", line))
         }
     }
 
-    pub fn save(&self) {
-        match self.state {
-            None => (),
-            Some(ref state) => match state.save() {
+    fn load(path: &str) -> Result<State, String> {
+        let f = match File::open(path) {
+            Ok(f) => f,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let buf = BufReader::new(f);
+        let mut cmds = Vec::new();
+        for l in buf.lines() {
+            match l {
+                Ok(l) => cmds.push(State::parse_line(&l)?),
+                Err(e) => return Err(format!("{}", e))
+            }
+        }
+        Ok(State { cmds: cmds })
+    }
+}
+
+pub struct Run {
+    empty: bool,
+    state: State
+}
+
+impl Run {
+    pub fn new(path: &str) -> Run {
+        println!("New run {}", path);
+        let state = State {
+            cmds: Vec::new()
+        };
+        Run { empty: false, state: state }
+    }
+
+    pub fn load(path: &str) -> Run {
+        println!("Loading {}", path);
+        let state = match State::load(path) {
+            Ok(s) => s,
+            Err(e) => panic!("Failure to load '{}': {}", path, e)
+        };
+        Run { empty: false, state: state }
+    }
+
+    pub fn next(&mut self) -> Option<Command> {
+        if self.empty {
+            None
+        } else {
+            self.state.next()
+        }
+    }
+
+    pub fn empty() -> Run {
+        Run { empty: true, state: State { cmds: Vec::new() } }
+    }
+
+    pub fn record(&mut self, cmd: Command) {
+        if !self.empty {
+            self.state.cmds.push(cmd);
+        }
+    }
+
+    pub fn save(&self, path: &str) {
+        if !self.empty {
+            match self.state.save(path) {
                 Ok(_) => (),
                 Err(e) => eprintln!("Error while saving run to '{}': {}",
-                                    state.path, e)
+                                    path, e)
             }
         }
     }

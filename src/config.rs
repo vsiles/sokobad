@@ -143,7 +143,13 @@ impl KeyBindings {
     }
 }
 
-pub fn new(path: &str) -> Result<(KeyBindings, usize), String> {
+pub struct Config {
+    pub keys: KeyBindings,
+    pub undo_level: usize,
+    pub replay_speed: u32
+}
+
+pub fn new(path: &str) -> Result<Config, String> {
         let data = {
             match fs::read_to_string(path)  {
                 Ok(d) => d,
@@ -164,6 +170,14 @@ pub fn new(path: &str) -> Result<(KeyBindings, usize), String> {
         if !undo.is_number() {
             return Err(format!("Invalid 'undo-level' entry\n"));
         }
+        let speed = &config["replay-speed"];
+        if !speed.is_number() {
+            return Err(format!("Invalid 'replay-speed' entry\n"));
+        }
         let kb = KeyBindings::new(&config, path);
-        Ok((kb, undo.as_usize().unwrap()))
+        Ok(Config {
+            keys: kb,
+            undo_level: undo.as_usize().unwrap(),
+            replay_speed: speed.as_u32().unwrap()
+        })
 }

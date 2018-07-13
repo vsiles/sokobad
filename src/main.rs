@@ -42,22 +42,35 @@ fn main() {
              .help("Save the run in the specified file")
              .takes_value(true)
              .default_value("/tmp/sokobad.run"))
+        .arg(Arg::with_name("play")
+             .short("p")
+             .long("play")
+             .value_name("FILE")
+             .help("Run a saved file instead of interactive playing")
+             .takes_value(true)
+             .conflicts_with("record"))
         .get_matches();
 
     let config_path = matches.value_of("config").unwrap_or("data/config.json");
 
     println!("Loading configuration: {}", config_path);
-    let (keys, undo_level) = config::new(config_path).unwrap();
+    let game_conf = config::new(config_path).unwrap();
+    let keys = &game_conf.keys;
+    let undo_level = game_conf.undo_level;
+    let speed = game_conf.replay_speed;
 
-    let record_path = matches.value_of("record").unwrap().to_string(); /* has a default value */
-    let mut record = match matches.occurrences_of("record") {
-        0 => record::Run::empty(),
-        1 => record::Run::new(record_path),
-        _ => {
-            eprintln!("W: multiple occurences of -r, defaulting to the first one");
-            record::Run::new(record_path)
-        }
+    let record_path = matches.value_of("record").unwrap(); /* has a default value */
+    let mut record = if matches.occurrences_of("record") != 0 {
+        record::Run::new(record_path)
+    } else {
+        record::Run::empty()
     };
+
+    let mut replay = false;
+    if matches.occurrences_of("play") != 0 {
+        replay = true;
+        record = record::Run::load(matches.value_of("play").unwrap())
+    }
 
     let map_path = matches.value_of("map").unwrap(); /* has a default value */
     println!("Loading map: {}", map_path);
@@ -93,49 +106,70 @@ fn main() {
     let tex = tex_creator.load_texture(Path::new("data/img/win.png")).unwrap();
 
     let mut events = sdl.event_pump().unwrap();
+    let mut now = timer_subsystem.ticks();
+    let mut done: bool;
     'main: loop {
-        let mut done = false;
+        done = false;
+        let mut cmd = None;
         for event in events.poll_iter() {
-            match event {
-                Event::Quit {..} => {
-                    record.record(record::Command::Quit);
-                    break 'main
-                },
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    record.record(record::Command::Quit);
-                    break 'main
-                },
-                Event::KeyDown { keycode, .. } => {
-                    match keycode {
-                        Some(key) => {
-                            if key == keys.quit {
-                                record.record(record::Command::Quit);
-                                break 'main
-                            } else if key == keys.up {
-                                record.record(record::Command::Up);
-                                done = map.update(game::Direction::Up)
-                            } else if key == keys.down {
-                                record.record(record::Command::Down);
-                                done = map.update(game::Direction::Down)
-                            } else if key == keys.left {
-                                record.record(record::Command::Left);
-                                done = map.update(game::Direction::Left)
-                            } else if key == keys.right {
-                                record.record(record::Command::Right);
-                                done = map.update(game::Direction::Right)
-                            } else if key == keys.undo {
-                                record.record(record::Command::Undo);
-                                map.undo()
-                            } else if key == keys.reset {
-                                record.record(record::Command::Reset);
-                                map.reset()
-                            }
-                        },
-                        None => ()
+            if replay {
+                match event {
+                    Event::Quit {..} => {
+                        break 'main
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                        break 'main
+                    },
+                    _ => {},
+                }
+            } else {
+                match event {
+                    Event::Quit {..} => {
+                        record.record(record::Command::Quit);
+                        break 'main
+                    },
+                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                        record.record(record::Command::Quit);
+                        break 'main
+                    },
+                    Event::KeyDown { keycode, .. } => {
+                        match keycode {
+                            Some(key) => cmd = cmd_of_key(key, &keys),
+                            None => ()
+                        }
                     }
-                },
-                _ => {},
+                    _ => {},
+                }
             }
+        }
+
+        if replay {
+            let cur = timer_subsystem.ticks();
+            if cur - now > speed {
+                now = cur;
+                match record.next() {
+                    Some(c) => {
+                        cmd = Some(c)
+                    },
+                    None => break 'main
+                }
+            }
+        }
+
+        match cmd {
+            Some(cmd) => {
+                if !replay { record.record(cmd) };
+                match cmd {
+                    record::Command::Quit => break 'main,
+                    record::Command::Up => done = map.update(game::Direction::Up),
+                    record::Command::Down => done = map.update(game::Direction::Down),
+                    record::Command::Left => done = map.update(game::Direction::Left),
+                    record::Command::Right => done = map.update(game::Direction::Right),
+                    record::Command::Undo => map.undo(),
+                    record::Command::Reset => map.reset(),
+                }
+            },
+            None => ()
         }
 
         /* Render here */
@@ -147,16 +181,43 @@ fn main() {
         canvas.present();
 
         if done {
-            let w2 = window_width / 2;
-            let h2 = window_height / 2;
-            let r = Rect::new((w2 - w2 / 2) as i32, (h2 - h2 / 2) as i32,
-                              w2, h2);
-            canvas.copy(&tex, None, Some(r)).unwrap();
-            canvas.present();
-            println!("Congratulations, you won !");
-            timer_subsystem.delay(2000);
             break 'main
         }
     }
-    record.save()
+    if !replay {
+        record.save(record_path)
+    }
+
+    if done {
+        let w2 = window_width / 2;
+        let h2 = window_height / 2;
+        let r = Rect::new((w2 - w2 / 2) as i32, (h2 - h2 / 2) as i32, w2, h2);
+        canvas.copy(&tex, None, Some(r)).unwrap();
+        canvas.present();
+        println!("Congratulations, you won !");
+        timer_subsystem.delay(2000);
+    } else {
+        println!("Sorry, you failed");
+    }
+}
+
+
+fn cmd_of_key(key: Keycode, keys: &config::KeyBindings) -> Option<record::Command> {
+    if key == keys.quit {
+        Some(record::Command::Quit)
+    } else if key == keys.up {
+        Some(record::Command::Up)
+    } else if key == keys.down {
+        Some(record::Command::Down)
+    } else if key == keys.left {
+        Some(record::Command::Left)
+    } else if key == keys.right {
+        Some(record::Command::Right)
+    } else if key == keys.undo {
+        Some(record::Command::Undo)
+    } else if key == keys.reset {
+        Some(record::Command::Reset)
+    } else {
+        None
+    }
 }
