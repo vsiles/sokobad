@@ -117,76 +117,36 @@ struct State {
 }
 
 impl State {
-    fn move_up_down<F1, F2>(&mut self, x: usize, y: usize, next: bool,
-                            f1: F1, f2: F2) -> bool
-    where F1: Fn(usize, usize) -> usize,
-          F2: Fn(i32, i32) -> i32 {
-        let cell = self.data[f1(y, 1)][x];
+    fn inspect(&mut self, x1: usize, y1: usize, x2: usize, y2: usize,
+            next: bool) -> bool {
+        let cell = self.data[y1][x1];
         if cell.is_free(self.solved) {
-            self.player.y = f2(self.player.y , 1);
             return true
         }
         if !next { return false }
-        let ncell = self.data[f1(y, 2)][x];
+        let ncell = self.data[y2][x2];
         if cell.is_movable() && ncell.is_free(self.solved) {
             if cell.is_crate() {
                 /* Move but can't succeed */
-                self.data[f1(y, 2)][x].kind = CellType::Crate;
-                self.data[f1(y, 1)][x].kind = CellType::Empty;
+                self.data[y2][x2].kind = CellType::Crate;
+                self.data[y1][x1].kind = CellType::Empty;
             } else {
-                if self.data[f1(y, 2)][x].is_goal() {
+                if self.data[y2][x2].is_goal() {
                     /* Block on goal -> success */
                     self.goals_left = self.goals_left - 1
                 }
-                self.data[f1(y, 2)][x].kind = CellType::Block;
+                self.data[y2][x2].kind = CellType::Block;
 
-                if self.data[f1(y, 1)][x].is_goal() {
+                if self.data[y1][x1].is_goal() {
                     /* Block removed from goal -> failure */
                     self.goals_left = self.goals_left + 1
                 }
-                self.data[f1(y, 1)][x].kind = CellType::Empty
+                self.data[y1][x1].kind = CellType::Empty
             }
             /* finally, let's move */
-            self.player.y = f2(self.player.y, 1);
             return true
         }
         return false;
-    }
-
-    fn move_left_right<F1, F2>(&mut self, x: usize, y: usize, next: bool,
-                               f1: F1, f2: F2) -> bool
-    where F1: Fn(usize, usize) -> usize,
-          F2: Fn(i32, i32) -> i32 {
-        let cell = self.data[y][f1(x, 1)];
-        if cell.is_free(self.solved) {
-            self.player.x = f2(self.player.x , 1);
-            return true
-        }
-        if !next { return false }
-        let ncell = self.data[y][f1(x, 2)];
-        if cell.is_movable() && ncell.is_free(self.solved) {
-            if cell.is_crate() {
-                /* Move but can't succeed */
-                self.data[y][f1(x, 2)].kind = CellType::Crate;
-                self.data[y][f1(x, 1)].kind = CellType::Empty;
-            } else {
-                if self.data[y][f1(x, 2)].is_goal() {
-                    /* Block on goal -> success */
-                    self.goals_left = self.goals_left - 1
-                }
-                self.data[y][f1(x, 2)].kind = CellType::Block;
-
-                if self.data[y][f1(x, 1)].is_goal() {
-                    /* Block removed from goal -> failure */
-                    self.goals_left = self.goals_left + 1
-                }
-                self.data[y][f1(x, 1)].kind = CellType::Empty
-            }
-            /* finally, let's move */
-            self.player.x = f2(self.player.x, 1);
-            return true
-        }
-        return false
     }
 }
 
@@ -332,16 +292,24 @@ impl Map {
         let moved = {
             match dir {
                 Direction::Up => if y > 0 {
-                    state.move_up_down(x, y, y > 1, |x, y| x - y, |x, y| x - y)
+                    let moved = state.inspect(x, y - 1, x, y - 2, y > 1);
+                    if moved { state.player.y = state.player.y - 1 }
+                    moved
                 } else { false },
                 Direction::Down => if y < h - 1 {
-                    state.move_up_down(x, y, y < h - 2, |x, y| x + y, |x, y| x + y)
+                    let moved = state.inspect(x, y + 1, x, y + 2, y < h - 2);
+                    if moved { state.player.y = state.player.y + 1 }
+                    moved
                 } else { false },
                 Direction::Left => if x > 0 {
-                    state.move_left_right(x, y, x > 1, |x, y| x - y, |x, y| x - y)
+                    let moved = state.inspect(x - 1, y, x - 2, y, x > 1);
+                    if moved { state.player.x = state.player.x - 1 }
+                    moved
                 } else { false },
                 Direction::Right => if x < w - 1 {
-                    state.move_left_right(x, y, x < w - 2, |x, y| x + y, |x, y| x + y)
+                    let moved = state.inspect(x + 1, y, x + 2, y, x < w - 2);
+                    if moved { state.player.x = state.player.x + 1 }
+                    moved
                 } else { false }
             }
         };
