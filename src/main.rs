@@ -1,10 +1,13 @@
 extern crate sdl2;
+extern crate clap;
 
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::image::LoadTexture;
+
+use clap::{Arg, App};
 
 use std::path::Path;
 
@@ -14,8 +17,34 @@ mod game;
 mod config;
 
 fn main() {
-    let (keys, undo_level) = config::new("data/config.json").unwrap();
-    let mut map = game::Map::new(CELL_SIZE, undo_level).unwrap();
+    let matches = App::new("Sokobad")
+        .version("1.0")
+        .author("Vinz <vincent.siles@ens-lyon.org>")
+        .about("Poor clone of Sokoban/Hinder written in Rust")
+        .arg(Arg::with_name("map")
+             .short("m")
+             .long("map")
+             .value_name("FILE")
+             .help("Select the map to run")
+             .takes_value(true)
+             .default_value("data/maps/map0"))
+        .arg(Arg::with_name("config")
+             .short("c")
+             .long("config")
+             .value_name("FILE")
+             .help("Configuration file (json)")
+             .takes_value(true))
+        .get_matches();
+
+    let config_path = matches.value_of("config").unwrap_or("data/config.json");
+
+    println!("Loading configuration: {}", config_path);
+    let (keys, undo_level) = config::new(config_path).unwrap();
+
+    let map_path = matches.value_of("map").unwrap(); /* has a default value */
+    println!("Loading map: {}", map_path);
+
+    let mut map = game::Map::new(map_path, CELL_SIZE, undo_level).unwrap();
     // map.dump();
 
     let sdl = sdl2::init().unwrap();

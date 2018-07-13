@@ -3,21 +3,11 @@ extern crate sdl2;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 
-use std::io;
+use std::io::BufReader;
+use std::fs::File;
+use std::io::prelude::*;
 
-fn read_line() -> Result<String, String> {
-    let mut line = "".to_string();
-    match io::stdin().read_line(&mut line) {
-        Ok(_) => (), /* disregard the returned len */
-        Err(e) => return Err(format!("Can't read stdin: {}", e))
-    }
-    let len_withoutcrlf = line.trim_right().len();
-    line.truncate(len_withoutcrlf);
-    Ok(line)
-}
-
-fn read_int() -> Result<i32, String> {
-    let line = read_line()?;
+fn read_int(line: &String) -> Result<i32, String> {
     match line.parse::<i32>() {
         Ok(i) => Ok(i),
         Err(e) => return Err(format!("Can't parse {} as i32: {}",
@@ -203,15 +193,23 @@ impl State {
 pub struct Map {
     pub width: i32,
     pub height: i32,
+    lines: Vec<String>, /* currently usued, will be used for reset */
     max_undo: usize,
     cell_size: u32,
-    state: Vec<State>
+    states: Vec<State>
 }
 
 impl Map {
-    pub fn new(cell_size: u32, max_undo: usize) -> Result<Map, String> {
-        let width = read_int()?;
-        let height = read_int()?;
+    fn load(lines: &Vec<String>) -> Result<(i32, i32, State), String> {
+        let mut iter = lines.into_iter();
+        let width = match iter.next() {
+            Some(l) => read_int(l)?,
+            None => return Err(format!("Invalid map format\n"))
+        };
+        let height = match iter.next() {
+            Some(l) => read_int(l)?,
+            None => return Err(format!("Invalid map format\n"))
+        };
         let mut map = Vec::new();
         let mut x = 0;
         let mut y = 0;
@@ -220,11 +218,9 @@ impl Map {
         let mut goals_left = 0;
 
         for j in 0..height {
-            let line: Vec<char> = {
-                match read_line() {
-                    Ok(d) => d.chars().collect(),
-                    Err(e) => return Err(format!("read_line failure: {}", e))
-                }
+            let line: Vec<char> = match iter.next() {
+                Some(l) => l.chars().collect(),
+                None => return Err(format!("Invalid map format\n"))
             };
             let mut row = Vec::new();
             for i in 0..width {
@@ -264,36 +260,64 @@ impl Map {
             map.push(row);
         }
         if !start {
-            Err(format!("Missing start point"))
+            return Err(format!("Missing start point"))
         } else if !exit_cell {
-            Err(format!("Missing exit point"))
+            return Err(format!("Missing exit point"))
         } else if goals_left <= 0 {
-            Err(format!("Not enough goals"))
-        } else {
-            let mut state = Vec::new();
-            state.push(State { data: map, player: Player { x: x, y: y},
-                        solved: false, goals_left: goals_left });
-            Ok(Map {
-                width: width, height: height, state: state,
-                cell_size: cell_size, max_undo: max_undo
-            })
+            return Err(format!("Not enough goals"))
         }
+        let state = State {
+            data: map,
+            player: Player { x: x, y: y },
+            solved: false,
+            goals_left: goals_left
+        };
+        Ok((width, height, state))
+    }
+
+    pub fn new(path: &str, cell_size: u32, max_undo: usize) -> Result<Map, String> {
+
+        let f = match File::open(path) {
+            Ok(f) => f,
+            Err(e) =>
+                return Err(format!("Cannot open '{}': {}\n", path, e))
+        };
+        let buf = BufReader::new(f);
+        let mut lines = Vec::new();
+        for l in buf.lines() {
+            match l {
+                Ok(l) => lines.push(l),
+                Err(e) =>
+                    return Err(format!("Invalid line in '{}': {}\n", path, e))
+            }
+        }
+        let (width, height, state) = match Map::load(&lines) {
+            Ok(d) => d,
+            Err(e) => return Err(e)
+        };
+        let mut states = Vec::new();
+        states.push(state);
+        Ok(Map {
+            width: width, height: height, states: states,
+            cell_size: cell_size, max_undo: max_undo,
+            lines: lines
+        })
     }
 
     fn get_state(&mut self) -> &mut State {
-        let len = self.state.len();
-        &mut self.state[len - 1]
+        let len = self.states.len();
+        &mut self.states[len - 1]
     }
 
     fn get_state_ro(&self) -> &State {
-        let len = self.state.len();
-        &self.state[len - 1]
+        let len = self.states.len();
+        &self.states[len - 1]
     }
 
     pub fn update(&mut self, dir: Direction) -> bool {
         /* copy current state */
-        let len = self.state.len();
-        let mut state = self.state[len - 1].clone();
+        let len = self.states.len();
+        let mut state = self.states[len - 1].clone();
 
         let w: usize = self.width as usize;
         let h: usize = self.height as usize;
@@ -319,9 +343,9 @@ impl Map {
         /* If we moved, update the undo stack */
         if moved {
             if len >= self.max_undo {
-                self.state.remove(0);
+                self.states.remove(0);
             }
-            self.state.push(state);
+            self.states.push(state);
         }
 
         let curr_state = self.get_state();
@@ -357,8 +381,8 @@ impl Map {
     }
 
     pub fn undo(&mut self) {
-        if self.state.len() > 1 {
-            self.state.pop();
+        if self.states.len() > 1 {
+            self.states.pop();
         }
     }
 }
