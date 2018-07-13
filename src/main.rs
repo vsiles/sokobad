@@ -54,7 +54,13 @@ fn main() {
     let config_path = matches.value_of("config").unwrap_or("data/config.json");
 
     println!("Loading configuration: {}", config_path);
-    let game_conf = config::new(config_path).unwrap();
+    let game_conf = match config::new(config_path) {
+        Ok(gc) => gc,
+        Err(e) => {
+            eprintln!("E: {}", e);
+            std::process::exit(1)
+        }
+    };
     let keys = &game_conf.keys;
     let undo_level = game_conf.undo_level;
     let speed = game_conf.replay_speed;
@@ -75,7 +81,13 @@ fn main() {
     let map_path = matches.value_of("map").unwrap(); /* has a default value */
     println!("Loading map: {}", map_path);
 
-    let mut map = game::Map::new(map_path, CELL_SIZE, undo_level).unwrap();
+    let mut map = match game::Map::new(map_path, CELL_SIZE, undo_level) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("E: {}", e);
+            std::process::exit(1)
+        }
+    };
 
     let sdl = sdl2::init().unwrap();
     let _sdl_image = sdl2::image::init(sdl2::image::INIT_PNG).unwrap();
@@ -103,7 +115,13 @@ fn main() {
     let mut timer_subsystem = sdl.timer().unwrap();
 
     let tex_creator = canvas.texture_creator();
-    let tex = tex_creator.load_texture(Path::new("data/img/win.png")).unwrap();
+    let tex = match tex_creator.load_texture(Path::new("data/img/win.png")) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("E: Failure to load 'win' texture': {}", e);
+            std::process::exit(1)
+        }
+    };
 
     let mut events = sdl.event_pump().unwrap();
     let mut now = timer_subsystem.ticks();
