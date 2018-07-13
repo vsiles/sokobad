@@ -15,6 +15,7 @@ const CELL_SIZE : u32 = 32;
 
 mod game;
 mod config;
+mod record;
 
 fn main() {
     let matches = App::new("Sokobad")
@@ -34,6 +35,13 @@ fn main() {
              .value_name("FILE")
              .help("Configuration file (json)")
              .takes_value(true))
+        .arg(Arg::with_name("record")
+             .short("r")
+             .long("rec")
+             .value_name("FILE")
+             .help("Save the run in the specified file")
+             .takes_value(true)
+             .default_value("/tmp/sokobad.run"))
         .get_matches();
 
     let config_path = matches.value_of("config").unwrap_or("data/config.json");
@@ -41,11 +49,20 @@ fn main() {
     println!("Loading configuration: {}", config_path);
     let (keys, undo_level) = config::new(config_path).unwrap();
 
+    let record_path = matches.value_of("record").unwrap().to_string(); /* has a default value */
+    let mut record = match matches.occurrences_of("record") {
+        0 => record::Run::empty(),
+        1 => record::Run::new(record_path),
+        _ => {
+            eprintln!("W: multiple occurences of -r, defaulting to the first one");
+            record::Run::new(record_path)
+        }
+    };
+
     let map_path = matches.value_of("map").unwrap(); /* has a default value */
     println!("Loading map: {}", map_path);
 
     let mut map = game::Map::new(map_path, CELL_SIZE, undo_level).unwrap();
-    // map.dump();
 
     let sdl = sdl2::init().unwrap();
     let _sdl_image = sdl2::image::init(sdl2::image::INIT_PNG).unwrap();
@@ -80,24 +97,37 @@ fn main() {
         let mut done = false;
         for event in events.poll_iter() {
             match event {
-                Event::Quit {..} => break 'main,
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } =>
-                    break 'main,
+                Event::Quit {..} => {
+                    record.record(record::Command::Quit);
+                    break 'main
+                },
+                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    record.record(record::Command::Quit);
+                    break 'main
+                },
                 Event::KeyDown { keycode, .. } => {
                     match keycode {
                         Some(key) => {
-                            if key == keys.quit { break 'main }
-                            else if key == keys.up {
+                            if key == keys.quit {
+                                record.record(record::Command::Quit);
+                                break 'main
+                            } else if key == keys.up {
+                                record.record(record::Command::Up);
                                 done = map.update(game::Direction::Up)
                             } else if key == keys.down {
+                                record.record(record::Command::Down);
                                 done = map.update(game::Direction::Down)
                             } else if key == keys.left {
+                                record.record(record::Command::Left);
                                 done = map.update(game::Direction::Left)
                             } else if key == keys.right {
+                                record.record(record::Command::Right);
                                 done = map.update(game::Direction::Right)
                             } else if key == keys.undo {
+                                record.record(record::Command::Undo);
                                 map.undo()
                             } else if key == keys.reset {
+                                record.record(record::Command::Reset);
                                 map.reset()
                             }
                         },
@@ -125,8 +155,8 @@ fn main() {
             canvas.present();
             println!("Congratulations, you won !");
             timer_subsystem.delay(2000);
-            std::process::exit(0);
+            break 'main
         }
-
     }
+    record.save()
 }
