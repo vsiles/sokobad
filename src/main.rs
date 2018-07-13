@@ -108,6 +108,7 @@ fn main() {
     let mut events = sdl.event_pump().unwrap();
     let mut now = timer_subsystem.ticks();
     let mut done: bool;
+    let mut movements = 0;
     'main: loop {
         done = false;
         let mut cmd = None;
@@ -158,6 +159,7 @@ fn main() {
 
         match cmd {
             Some(cmd) => {
+                movements = movements + 1;
                 if !replay { record.record(cmd) };
                 match cmd {
                     record::Command::Quit => break 'main,
@@ -195,10 +197,11 @@ fn main() {
         canvas.copy(&tex, None, Some(r)).unwrap();
         canvas.present();
         println!("Congratulations, you won !");
-        timer_subsystem.delay(2000);
     } else {
         println!("Sorry, you failed");
     }
+    println!("Movements: {}", movements);
+    timer_subsystem.delay(2000);
 }
 
 
