@@ -215,7 +215,8 @@ impl Map {
         let mut y = 0;
         let mut start = false;
         let mut exit_cell = false;
-        let mut goals_left = 0;
+        let mut num_blocks = 0;
+        let mut num_goals = 0;
 
         for j in 0..height {
             let line: Vec<char> = match iter.next() {
@@ -240,10 +241,13 @@ impl Map {
                         '.' => Cell::non_goal(CellType::Wall),
                         ' ' => Cell::non_goal(CellType::Empty),
                         'g' => {
-                            goals_left = goals_left + 1;
+                            num_goals = num_goals + 1;
                             Cell { kind: CellType::Empty, goal: true }
                         },
-                        'b' => Cell::non_goal(CellType::Block),
+                        'b' => {
+                            num_blocks = num_blocks + 1;
+                            Cell::non_goal(CellType::Block)
+                        },
                         'c' => Cell::non_goal(CellType::Crate),
                         'x' => {
                             if !exit_cell {
@@ -263,14 +267,16 @@ impl Map {
             return Err(format!("Missing start point"))
         } else if !exit_cell {
             return Err(format!("Missing exit point"))
-        } else if goals_left <= 0 {
+        } else if num_goals <= 0 {
             return Err(format!("Not enough goals"))
+        } else if num_goals != num_blocks {
+            return Err(format!("Block/Goal mismatch"))
         }
         let state = State {
             data: map,
             player: Player { x: x, y: y },
             solved: false,
-            goals_left: goals_left
+            goals_left: num_goals
         };
         Ok((width, height, state))
     }
