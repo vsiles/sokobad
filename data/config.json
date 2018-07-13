@@ -6,6 +6,7 @@
         "left": "arrow-left",
         "right": "arrow-right",
         "undo": "backspace",
-        "quit": "q"
+        "quit": "q",
+        "reset-level": "r"
     }
 }

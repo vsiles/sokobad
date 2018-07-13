@@ -11,6 +11,7 @@ pub struct KeyBindings {
     pub right: Keycode,
     pub undo: Keycode,
     pub quit: Keycode,
+    pub reset: Keycode,
 }
 
 fn map_keys(entry: &str) -> Option<Keycode> {
@@ -78,7 +79,8 @@ impl KeyBindings {
             left: Keycode::Left,
             right: Keycode::Right,
             undo: Keycode::Backspace,
-            quit: Keycode::Q
+            quit: Keycode::Q,
+            reset: Keycode::R,
         };
 
         let keys = &config["key-bindings"];
@@ -93,6 +95,7 @@ impl KeyBindings {
         let right = &keys["right"];
         let undo = &keys["undo"];
         let quit = &keys["quit"];
+        let reset = &keys["reset-level"];
 
         if up.is_string() {
             match map_keys(up.as_str().unwrap()) {
@@ -128,6 +131,12 @@ impl KeyBindings {
             match map_keys(quit.as_str().unwrap()) {
                 Some (k) => kb.quit = k,
                 None => eprintln!("W: unknown key binding for 'quit'")
+            }
+        }
+        if reset.is_string() {
+            match map_keys(reset.as_str().unwrap()) {
+                Some (k) => kb.reset = k,
+                None => eprintln!("W: unknown key binding for 'reset-level'")
             }
         }
         kb

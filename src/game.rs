@@ -385,4 +385,13 @@ impl Map {
             self.states.pop();
         }
     }
+
+    pub fn reset(&mut self) {
+        let state = match Map::load(&self.lines) {
+            Ok((_, _, s)) => s,
+            Err(e) => panic!("Map reset should not fail: {}\n", e)
+        };
+        self.states.clear();
+        self.states.push(state);
+    }
 }

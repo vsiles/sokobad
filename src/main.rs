@@ -97,6 +97,8 @@ fn main() {
                                 done = map.update(game::Direction::Right)
                             } else if key == keys.undo {
                                 map.undo()
+                            } else if key == keys.reset {
+                                map.reset()
                             }
                         },
                         None => ()
