@@ -1,0 +1,10 @@
+map4: has one enemy
+map5: has two enemies
+map5: should be in the shadow: only see 3 tiles
+            3
+            2
+            1
+         321p123
+            1
+            2
+            3
