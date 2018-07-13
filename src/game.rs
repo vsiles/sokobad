@@ -354,9 +354,12 @@ impl Map {
                                    self.cell_size, self.cell_size)).unwrap();
     }
 
-    pub fn undo(&mut self) {
+    pub fn undo(&mut self) -> bool {
         if self.states.len() > 1 {
             self.states.pop();
+            true
+        } else {
+            false
         }
     }
 

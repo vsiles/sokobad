@@ -185,8 +185,16 @@ fn main() {
                     record::Command::Down => done = map.update(game::Direction::Down),
                     record::Command::Left => done = map.update(game::Direction::Left),
                     record::Command::Right => done = map.update(game::Direction::Right),
-                    record::Command::Undo => map.undo(),
-                    record::Command::Reset => map.reset(),
+                    record::Command::Undo => {
+                        if map.undo() {
+                            /* to account for the +1 above */
+                            movements = movements - 2
+                        }
+                    },
+                    record::Command::Reset => {
+                        movements = 0;
+                        map.reset()
+                    }
                 }
             },
             None => ()
